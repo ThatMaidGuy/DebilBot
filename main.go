@@ -2,27 +2,22 @@ package main
 
 import (
 	"log"
+	"os"
 	"strings"
 	"time"
 
-	"os"
-
 	"github.com/ztrue/shutdown"
+	"gopkg.in/telebot.v4" // Перешли на v4
 
 	"DebilBot/chatbot"
 	"DebilBot/globals"
-
-	"github.com/SevereCloud/vksdk/v2/api"
-	longpoll "github.com/SevereCloud/vksdk/v2/longpoll-user"
-	wrapper "github.com/SevereCloud/vksdk/v2/longpoll-user/v3"
 )
 
 var (
-	lp *longpoll.LongPoll
+	bot *telebot.Bot
 )
 
 func main() {
-
 	log.Println("Загрузка конфигов...")
 	LoadConfig()
 
@@ -32,87 +27,99 @@ func main() {
 	log.Println("Загрузка базы ответов...")
 	LoadAnswers()
 
-	globals.VK = api.NewVK(globals.AccessToken)
-
-	go GoToOnline()
-
-	go StartLongPoll()
-
-	shutdown.Listen()
-}
-
-func StartLongPoll() {
-	mode := longpoll.ReceiveAttachments + longpoll.ExtendedEvents
-	lp, err := longpoll.NewLongPoll(globals.VK, mode)
-	if err != nil {
-		panic(err)
+	var err error
+	pref := telebot.Settings{
+		Token:  globals.AccessToken,
+		Poller: &telebot.LongPoller{Timeout: 10 * time.Second},
 	}
 
+	bot, err = telebot.NewBot(pref)
+	if err != nil {
+		log.Fatalf("Ошибка при создании бота: %v", err)
+	}
+
+	bot.Handle(telebot.OnText, OnMessage)
+
 	shutdown.Add(func() {
-		// Безопасное завершение
-		// Ждет пока соединение закроется и события обработаются
-		lp.Shutdown()
-
-		// Закрыть соединение
-		// Требует lp.Client.Transport = &http.Transport{DisableKeepAlives: true}
-		lp.Client.CloseIdleConnections()
-
-		// log.Println("Отключение модулей...")
-		// CloseModules()
-		// log.Println("Модули отключены")
+		log.Println("Остановка бота...")
+		bot.Stop()
 		log.Println("Пока :(")
 		os.Exit(1)
 	})
 
-	w := wrapper.NewWrapper(lp)
-
-	// event with code 4
-	w.OnNewMessage(OnMessage)
-
 	log.Println("Лонгпул запущен")
-
-	if err := lp.Run(); err != nil {
-		StartLongPoll()
-	}
+	bot.Start()
 }
 
-func GoToOnline() {
-	for {
-		globals.VK.AccountSetOnline(api.Params{
-			"voip": 0,
-		})
-		time.Sleep(time.Minute * 5)
-	}
-}
+func OnMessage(c telebot.Context) error {
+	msg := c.Message()
+	mText := strings.ToLower(msg.Text)
+	chatType := c.Chat().Type
 
-func OnMessage(m wrapper.NewMessage) {
-	mText := strings.ToLower(m.Text)
-	for _, a := range Appeals {
-		if strings.HasPrefix(mText, strings.ToLower(a.(string))) {
-			go OnMessageToBot(m, strings.ToLower(a.(string)))
-			break
+	// 1. Если это ЛС — обрабатываем сразу без обращений
+	if chatType == telebot.ChatPrivate {
+		go OnMessageToBot(c, "")
+		return nil
+	}
+
+	// 2. Если это группа/супергруппа
+	if chatType == telebot.ChatGroup || chatType == telebot.ChatSuperGroup {
+
+		// Проверяем: если это ответ (reply) на сообщение нашего бота
+		if msg.ReplyTo != nil && msg.ReplyTo.Sender.ID == bot.Me.ID {
+			// Пользователь общается напрямую с ботом внутри цепочки ответов, appeal не нужен
+			go OnMessageToBot(c, "")
+			return nil
+		}
+
+		if StupidMessagesEnable {
+			// Сначала проверяем, нет ли в тексте триггеров для нубиков
+			for _, trigger := range StupidMessagesTriggers {
+				if strings.Contains(mText, trigger.(string)) {
+					// Найдено ключевое слово! Обрабатываем без appeal
+					go OnStupidMessage(c) // Оставил вашу функцию для триггеров, как в вашем примере
+					return nil
+				}
+			}
+		}
+
+		// Если триггеров не нашлось, проверяем стандартное обращение (Appeals)
+		for _, a := range Appeals {
+			appealStr := strings.ToLower(a.(string))
+			if strings.HasPrefix(mText, appealStr) {
+				go OnMessageToBot(c, appealStr)
+				break
+			}
 		}
 	}
+
+	return nil
 }
 
-func OnMessageToBot(m wrapper.NewMessage, appeal string) {
-	rawText := strings.Replace(strings.ToLower(m.Text), appeal, "", 1)
-	args := strings.Split(strings.ToLower(rawText), " ")
+func OnMessageToBot(c telebot.Context, appeal string) {
+	msg := c.Message()
+	rawText := strings.ToLower(msg.Text)
 
-	messageInfo, err := globals.VK.MessagesGetByID(api.Params{
-		"message_ids": m.MessageID,
-	})
-	if err != nil {
+	if appeal != "" {
+		rawText = strings.Replace(rawText, appeal, "", 1)
+	}
+
+	rawText = strings.TrimSpace(rawText)
+	args := strings.Split(rawText, " ")
+
+	if len(args) == 0 || args[0] == "" {
 		return
 	}
-	if len(messageInfo.Items) == 0 {
-		return
-	}
+
 	if val, ok := commandList[args[0]]; ok {
-		val.Function(messageInfo.Items[0], args)
+		val.Function(c, args)
 	} else {
 		if globals.HasAnswers {
-			chatbot.FindAndSendAnswer(messageInfo.Items[0], rawText)
+			chatbot.FindAndSendAnswer(c, rawText)
 		}
 	}
+}
+
+func OnStupidMessage(c telebot.Context) {
+	c.Reply(StupidMessagesText)
 }

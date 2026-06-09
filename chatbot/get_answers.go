@@ -2,15 +2,14 @@ package chatbot
 
 import (
 	"DebilBot/globals"
-	"log"
 
-	"github.com/SevereCloud/vksdk/v2/api"
-	"github.com/SevereCloud/vksdk/v2/object"
+	"gopkg.in/telebot.v4"
+
 	"github.com/adrg/strutil"
 	"github.com/adrg/strutil/metrics"
 )
 
-func FindAndSendAnswer(messageData object.MessagesMessage, full_text string) {
+func FindAndSendAnswer(c telebot.Context, full_text string) {
 	if !globals.HasAnswers {
 		return
 	}
@@ -33,13 +32,5 @@ func FindAndSendAnswer(messageData object.MessagesMessage, full_text string) {
 
 	// log.Println("Отправлен ответ с \"" + last_sim_item[1] + "\" с коэфф " + fmt.Sprintf("%f", last_similarity))
 
-	_, err := globals.VK.MessagesSend(api.Params{
-		"peer_id":   messageData.PeerID,
-		"message":   last_sim_item[1],
-		"random_id": 0,
-		"reply_to":  globals.CanReply(messageData.ID),
-	})
-	if err != nil {
-		log.Println(err)
-	}
+	c.Reply(last_sim_item[1])
 }

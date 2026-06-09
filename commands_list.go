@@ -4,11 +4,11 @@ import (
 	"DebilBot/commands"
 	"DebilBot/globals"
 
-	"github.com/SevereCloud/vksdk/v2/api"
-	"github.com/SevereCloud/vksdk/v2/object"
+	"gopkg.in/telebot.v4"
 )
 
-type commandFunction = func(messageData object.MessagesMessage, args []string)
+// Теперь функция команды принимает telebot.Context вместо VK Message
+type commandFunction = func(c telebot.Context, args []string)
 
 type Command struct {
 	Name        string
@@ -22,7 +22,7 @@ var (
 	commandList map[string]Command
 )
 
-func AllCommands(messageData object.MessagesMessage, args []string) {
+func AllCommands(c telebot.Context, args []string) {
 	resultText := "Все команды:\n\n"
 
 	for _, v := range commandList {
@@ -31,21 +31,17 @@ func AllCommands(messageData object.MessagesMessage, args []string) {
 		}
 	}
 
-	globals.VK.MessagesSend(api.Params{
-		"peer_id":   messageData.PeerID,
-		"message":   resultText,
-		"random_id": 0,
-		"reply_to":  globals.CanReply(messageData.ID),
-	})
+	// c.Reply автоматически отвечает реплаем на исходное сообщение пользователя
+	_ = c.Reply(resultText)
 }
 
-func HelpCommand(messageData object.MessagesMessage, args []string) {
-	globals.VK.MessagesSend(api.Params{
-		"peer_id":   messageData.PeerID,
-		"message":   globals.BotSettings.Get("info_text").(string),
-		"random_id": 0,
-		"reply_to":  globals.CanReply(messageData.ID),
-	})
+func HelpCommand(c telebot.Context, args []string) {
+	infoText, ok := globals.BotSettings.Get("info_text").(string)
+	if !ok {
+		infoText = "Информация о боте временно недоступна."
+	}
+
+	_ = c.Reply(infoText)
 }
 
 func LoadCommands() {
@@ -70,27 +66,6 @@ func LoadCommands() {
 		Description: "Проверяет бота",
 		Icon:        "💡",
 		Function:    commands.TestCommand,
-		isHidden:    false,
-	}
-	commandList["видео"] = Command{
-		Name:        "видео [запрос]",
-		Description: "Ищу видео в ВК по запросу",
-		Icon:        "🎬",
-		Function:    commands.FindVideo,
-		isHidden:    false,
-	}
-	commandList["фото"] = Command{
-		Name:        "фото [запрос]",
-		Description: "Ищу фото в ВК по запросу",
-		Icon:        "📷",
-		Function:    commands.FindPhoto,
-		isHidden:    false,
-	}
-	commandList["гиф"] = Command{
-		Name:        "гиф [запрос]",
-		Description: "Ищу гиф-анимации в ВК по запросу",
-		Icon:        "🎞",
-		Function:    commands.FindGIF,
 		isHidden:    false,
 	}
 	commandList["время"] = Command{

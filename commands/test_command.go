@@ -1,21 +1,7 @@
 package commands
 
-import (
-	"DebilBot/globals"
-	"log"
+import "gopkg.in/telebot.v4"
 
-	"github.com/SevereCloud/vksdk/v2/api"
-	"github.com/SevereCloud/vksdk/v2/object"
-)
-
-func TestCommand(messageData object.MessagesMessage, args []string) {
-	_, err := globals.VK.MessagesSend(api.Params{
-		"peer_id":   messageData.PeerID,
-		"message":   "Все зашибись!",
-		"random_id": 0,
-		"reply_to":  globals.CanReply(messageData.ID),
-	})
-	if err != nil {
-		log.Println(err)
-	}
+func TestCommand(c telebot.Context, args []string) {
+	c.Reply("Понг!")
 }
