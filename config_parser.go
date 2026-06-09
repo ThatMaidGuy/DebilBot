@@ -9,6 +9,8 @@ import (
 )
 
 var (
+	BotApiUrl string
+
 	Appeals []interface{}
 
 	StupidMessagesEnable   bool
@@ -25,6 +27,8 @@ func LoadConfig() {
 	}
 
 	globals.AccessToken = config.Get("account.access_token").(string)
+	BotApiUrl = config.Get("account.url").(string)
+
 	globals.BotSettings = config.Get("bot_settings").(*toml.Tree)
 	Appeals = config.Get("bot_settings.appeal").([]interface{})
 

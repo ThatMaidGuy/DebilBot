@@ -29,6 +29,7 @@ func main() {
 
 	var err error
 	pref := telebot.Settings{
+		URL:    BotApiUrl,
 		Token:  globals.AccessToken,
 		Poller: &telebot.LongPoller{Timeout: 10 * time.Second},
 	}
