@@ -62,7 +62,7 @@ func FindAndSendAnswer(c telebot.Context, full_text string) {
 func findBestMatch(userText string, base [][]string) ([]string, bool) {
 	// Минимальный порог схожести (0.4 — оптимально, чтобы отсеять бред.
 	// Чем ближе к 1.0, тем точнее должно быть совпадение).
-	const minSimilarity = 0.75
+	const minSimilarity = 0.5
 
 	var maxSim = minSimilarity
 	var bestMatch []string
