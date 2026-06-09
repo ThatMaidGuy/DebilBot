@@ -1,7 +1,6 @@
 package chatbot
 
 import (
-	"log"
 	"math/rand/v2"
 	"strings" // Добавили для strings.ReplaceAll и strings.ToUpper
 
@@ -69,7 +68,12 @@ func findBestMatch(userText string, base [][]string) ([]string, bool) {
 	var bestMatch []string
 
 	// Настраиваем метрику один раз перед циклом
-	swg := metrics.NewJaroWinkler()
+	swg := &metrics.Levenshtein{
+		CaseSensitive: false,
+		InsertCost:    1,
+		DeleteCost:    1,
+		ReplaceCost:   1,
+	}
 
 	for _, row := range base {
 		// Защита: проверяем, что в строке базы есть как минимум триггер и ответ
@@ -80,7 +84,6 @@ func findBestMatch(userText string, base [][]string) ([]string, bool) {
 		if sim := swg.Compare(userText, row[0]); sim > maxSim {
 			maxSim = sim
 			bestMatch = row
-			log.Println(bestMatch, sim)
 		}
 	}
 
