@@ -10,6 +10,10 @@ import (
 
 var (
 	Appeals []interface{}
+
+	StupidMessagesEnable   bool
+	StupidMessagesTriggers []interface{}
+	StupidMessagesText     string
 )
 
 func LoadConfig() {
@@ -22,4 +26,10 @@ func LoadConfig() {
 	globals.AccessToken = config.Get("account.access_token").(string)
 	globals.BotSettings = config.Get("bot_settings").(*toml.Tree)
 	Appeals = config.Get("bot_settings.appeal").([]interface{})
+
+	StupidMessagesEnable = config.Get("stupid_messages.enable").(bool)
+	if StupidMessagesEnable {
+		StupidMessagesTriggers = config.Get("stupid_messages.triggers").([]interface{})
+		StupidMessagesText = config.Get("stupid_messages.text").(string)
+	}
 }

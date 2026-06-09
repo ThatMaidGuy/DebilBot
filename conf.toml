@@ -2,8 +2,12 @@
 access_token = ""
 
 [bot_settings]
-reply_message = true
 appeal = ["бот, ", "?", "дебил, "]
 info_text = "Привет! Меня зовут дебил2848, но друзья меня зовут пить пиво. Я эксперементальный ВК-бот, за авторством WheatleyHDD, который до этого создал GhostlyBot. В отличии от прошлого бота, было сделано немало работы над ошибками, включая полный пересмотр архитектуры кода.\n\nХочешь узнать, что я могу? Пиши \"?команды\""
 answers_base = "standard_answers.bin"
-admins = [388726687]
+admins = []
+
+[stupid_messages]
+enable = false
+triggers = []
+text = ""
