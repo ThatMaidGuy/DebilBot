@@ -14,6 +14,7 @@ var (
 	StupidMessagesEnable   bool
 	StupidMessagesTriggers []interface{}
 	StupidMessagesText     string
+	StupidMessagesChatIDs  []interface{}
 )
 
 func LoadConfig() {
@@ -31,5 +32,6 @@ func LoadConfig() {
 	if StupidMessagesEnable {
 		StupidMessagesTriggers = config.Get("stupid_messages.triggers").([]interface{})
 		StupidMessagesText = config.Get("stupid_messages.text").(string)
+		StupidMessagesChatIDs = config.Get("stupid_messages.chat_ids").([]interface{})
 	}
 }

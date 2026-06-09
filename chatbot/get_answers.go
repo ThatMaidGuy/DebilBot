@@ -1,12 +1,16 @@
 package chatbot
 
 import (
+	"log"
+	"math/rand/v2"
+	"strings" // Добавили для strings.ReplaceAll и strings.ToUpper
+
 	"DebilBot/globals"
 
-	"gopkg.in/telebot.v4"
-
-	"github.com/adrg/strutil"
 	"github.com/adrg/strutil/metrics"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+	"gopkg.in/telebot.v4"
 )
 
 func FindAndSendAnswer(c telebot.Context, full_text string) {
@@ -14,23 +18,76 @@ func FindAndSendAnswer(c telebot.Context, full_text string) {
 		return
 	}
 
-	// log.Println("Ищем ответ для \"" + full_text + "\"")
+	// Используем наш новый метод для поиска
+	match, found := findBestMatch(full_text, globals.FullBase)
+	if !found {
+		nf := globals.BotSettings.Get("answer_notfound").([]interface{})
 
-	var last_similarity float64
-	var last_sim_item []string
+		c.Reply(nf[rand.IntN(len(nf))])
+		return
+	}
 
-	swg := metrics.NewSmithWatermanGotoh()
-	swg.CaseSensitive = false
+	// Получаем сырой текст ответа
+	answer := match[1]
 
-	for _, v := range globals.FullBase {
-		sim := strutil.Similarity(full_text, v[0], swg)
-		if sim > last_similarity {
-			last_similarity = sim
-			last_sim_item = v
+	// 1. Получаем имя пользователя из Telegram
+	username := "Пользователь" // Дефолтное имя на случай, если у юзера нет имени
+	if c.Sender() != nil {
+		if c.Sender().FirstName != "" {
+			username = c.Sender().FirstName
+		} else if c.Sender().Username != "" {
+			username = c.Sender().Username
 		}
 	}
 
-	// log.Println("Отправлен ответ с \"" + last_sim_item[1] + "\" с коэфф " + fmt.Sprintf("%f", last_similarity))
+	// 2. Готовим варианты имени (Капсом и с Большой буквы)
+	usernameUpper := strings.ToUpper(username)
 
-	c.Reply(last_sim_item[1])
+	// Для безопасного приведения первой буквы к верхнему регистру (с учетом кириллицы)
+	// используем пакет golang.org/x/text/cases.
+	// Если пакет не установлен, выполните в терминале: go get golang.org/x/text
+	caser := cases.Title(language.Russian)
+	usernameTitle := caser.String(username)
+
+	// 3. Делаем замены в тексте ответа
+	answer = strings.ReplaceAll(answer, "%USERNAME%", usernameUpper)
+	answer = strings.ReplaceAll(answer, "%username%", usernameTitle)
+
+	// Отправляем измененный текст
+	c.Reply(answer)
+}
+
+// findBestMatch ищет наиболее похожую фразу в базе данных.
+// Возвращает массив строк (строку базы) и true, если совпадение найдено.
+// Если совпадений выше порога нет, возвращает nil и false.
+func findBestMatch(userText string, base [][]string) ([]string, bool) {
+	// Минимальный порог схожести (0.4 — оптимально, чтобы отсеять бред.
+	// Чем ближе к 1.0, тем точнее должно быть совпадение).
+	const minSimilarity = 0.75
+
+	var maxSim = minSimilarity
+	var bestMatch []string
+
+	// Настраиваем метрику один раз перед циклом
+	swg := metrics.NewJaroWinkler()
+
+	for _, row := range base {
+		// Защита: проверяем, что в строке базы есть как минимум триггер и ответ
+		if len(row) < 2 {
+			continue
+		}
+
+		if sim := swg.Compare(userText, row[0]); sim > maxSim {
+			maxSim = sim
+			bestMatch = row
+			log.Println(bestMatch, sim)
+		}
+	}
+
+	// Если bestMatch остался пустым, значит никто не преодолел порог minSimilarity
+	if bestMatch == nil {
+		return nil, false
+	}
+
+	return bestMatch, true
 }

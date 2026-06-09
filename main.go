@@ -38,7 +38,18 @@ func main() {
 		log.Fatalf("Ошибка при создании бота: %v", err)
 	}
 
+	// Хэндлер для обычного текста
 	bot.Handle(telebot.OnText, OnMessage)
+
+	// --- НОВЫЕ ХЭНДЛЕРЫ ДЛЯ МЕДИА ---
+	// Вешаем одну и ту же функцию OnMessage на все типы сообщений с медиа
+	bot.Handle(telebot.OnPhoto, OnMessage)
+	bot.Handle(telebot.OnVideo, OnMessage)
+	bot.Handle(telebot.OnAudio, OnMessage)
+	bot.Handle(telebot.OnDocument, OnMessage)
+	bot.Handle(telebot.OnVoice, OnMessage)
+	bot.Handle(telebot.OnAnimation, OnMessage) // Гифки
+	bot.Handle(telebot.OnSticker, OnMessage)   // На случай, если у стикера есть эмодзи, которые вы хотите парсить
 
 	shutdown.Add(func() {
 		log.Println("Остановка бота...")
@@ -51,9 +62,21 @@ func main() {
 	bot.Start()
 }
 
+// Вспомогательная функция для получения текста ИЛИ подписи к медиа
+func getMessageText(msg *telebot.Message) string {
+	if msg.Text != "" {
+		return msg.Text
+	}
+	// Если это медиафайл, текст будет лежать в Caption
+	return msg.Caption
+}
+
 func OnMessage(c telebot.Context) error {
 	msg := c.Message()
-	mText := strings.ToLower(msg.Text)
+
+	// Используем вспомогательную функцию вместо msg.Text
+	textToProcess := getMessageText(msg)
+	mText := strings.ToLower(textToProcess)
 	chatType := c.Chat().Type
 
 	// 1. Если это ЛС — обрабатываем сразу без обращений
@@ -77,8 +100,12 @@ func OnMessage(c telebot.Context) error {
 			for _, trigger := range StupidMessagesTriggers {
 				if strings.Contains(mText, trigger.(string)) {
 					// Найдено ключевое слово! Обрабатываем без appeal
-					go OnStupidMessage(c) // Оставил вашу функцию для триггеров, как в вашем примере
-					return nil
+					for _, chat_id := range StupidMessagesChatIDs {
+						if c.Chat().ID == chat_id.(int64) {
+							go OnStupidMessage(c)
+							return nil
+						}
+					}
 				}
 			}
 		}
@@ -98,7 +125,9 @@ func OnMessage(c telebot.Context) error {
 
 func OnMessageToBot(c telebot.Context, appeal string) {
 	msg := c.Message()
-	rawText := strings.ToLower(msg.Text)
+
+	// Тоже используем извлечение текста/подписи
+	rawText := strings.ToLower(getMessageText(msg))
 
 	if appeal != "" {
 		rawText = strings.Replace(rawText, appeal, "", 1)
@@ -107,7 +136,24 @@ func OnMessageToBot(c telebot.Context, appeal string) {
 	rawText = strings.TrimSpace(rawText)
 	args := strings.Split(rawText, " ")
 
+	// Если текста и подписи нет вообще (например, отправили просто фото без текста)
 	if len(args) == 0 || args[0] == "" {
+		switch {
+		case msg.Photo != nil:
+			c.Reply("Красивое фото!")
+		case msg.Video != nil:
+			c.Reply("Длинное видео, не буду смотреть.")
+		case msg.Voice != nil || msg.VideoNote != nil: // Заодно поймаем и круглые видео-сообщения (кружочки)
+			c.Reply("Не, мне лень слушать.")
+		case msg.Document != nil:
+			c.Reply("Да мне как то все равно, что ты там отправляешь...")
+		case msg.Animation != nil:
+			c.Reply("Гифка топ!")
+		case msg.Sticker != nil:
+			c.Reply(&telebot.Sticker{File: telebot.File{FileID: "CAACAgIAAxkBAAFL8n5qKAc8xSr8mKA7PlkkIwtFd4p-AgAC-Z4AAgfZ8EgRAeZCFgnt6jsE"}})
+		default:
+			return
+		}
 		return
 	}
 
